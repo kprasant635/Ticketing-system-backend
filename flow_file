@@ -1,0 +1,45 @@
+php artisan make:migration create_roles_table
+php artisan make:migration create_categories_table
+php artisan make:migration create_priorities_table
+php artisan make:migration create_statuses_table
+
+php artisan make:migration create_tickets_table
+
+php artisan make:migration create_ticket_queries_table
+php artisan make:migration create_ticket_query_responses_table
+
+php artisan make:migration create_slas_table
+php artisan make:migration create_ticket_slas_table
+
+php artisan make:migration create_escalation_levels_table
+php artisan make:migration create_ticket_escalations_table
+
+php artisan make:migration create_category_team_leads_table
+php artisan make:migration create_team_lead_developers_table
+
+php artisan make:migration create_ticket_assignments_table
+
+php artisan make:migration create_holidays_table
+php artisan make:migration create_ticket_logs_table
+
+
+php artisan make:model Role -m
+php artisan make:model Category -m
+php artisan make:model Priority -m
+php artisan make:model Status -m
+
+php artisan make:model Ticket -m
+
+php artisan make:model TicketQuery -m
+php artisan make:model TicketQueryResponse -m
+
+php artisan make:model Sla -m
+php artisan make:model TicketSla -m
+
+php artisan make:model EscalationLevel -m
+php artisan make:model TicketEscalation -m
+
+php artisan make:model TicketAssignment -m
+php artisan make:model TicketLog -m
+
+php artisan make:model Holiday -m
