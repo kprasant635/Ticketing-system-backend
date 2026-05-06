@@ -115,86 +115,26 @@ class MasterController extends Controller
             $payload_ups = json_decode(base64_decode(explode('.', $accessToken)[1]), true);
             $ups_user_id = $payload_ups['sub'];
 
-            // Use UpsApiTrait for the user details call
-            $userDetailsResponse = $this->upsGet_user_details('master/users/' . $ups_user_id, [], [
-                'Authorization' => 'Bearer ' . $accessToken
-            ]);
+            // 🚀 STEP 3: Sync user from UPS
+            $user = $this->syncUpsUser($accessToken, $ups_user_id);
 
-            if (!$userDetailsResponse || !$userDetailsResponse->successful()) {
+            if (!$user) {
                 return $this->respondWithProblem(
-                    title: 'UPS API failed',
-                    detail: 'Failed to fetch user details.',
+                    title: 'UPS Sync failed',
+                    detail: 'Failed to sync user from UPS.',
                     httpStatus: 500,
-                    errorCode: 'ELRS-VAL-NOUSERDETAILS'
+                    errorCode: 'ELRS-VAL-SYNCFAILED'
                 );
             }
 
-            $userDetails = $userDetailsResponse->json();
-            $userDetails = $userDetails['data'];
-            // \Log::info('UPS API User Details Response:', $userDetails);
+            // Extract roles from the synced user model
+            $roles = json_decode($user->role_name, true) ?? [];
 
-            // Use UpsApiTrait for the my-postings call
-            $myPostingsResponse = $this->upsGet('runtime/my-postings', [], [
-                'Authorization' => 'Bearer ' . $accessToken
-            ]);
-
-            if (!$myPostingsResponse || !$myPostingsResponse->successful()) {
-                return $this->respondWithProblem(
-                    title: 'UPS API failed',
-                    detail: 'Failed to fetch user postings/roles.',
-                    httpStatus: 500,
-                    errorCode: 'ELRS-VAL-NOPOSTINGS'
-                );
-            }
-
-            $myPostings = $myPostingsResponse->json();
-            // \Log::info('UPS API Postings Response:', $myPostings);
-
-            // Extract the first available role code
-            $roles = [];
-
-            if (!empty($myPostings['data'])) {
-                foreach ($myPostings['data'] as $posting) {
-                    if (!empty($posting['is_current'])) {  // only active roles
-                        $role = $posting['posting']['role']['role_code'] ?? null;
-                        if ($role) {
-                            $roles[] = strtolower($role);
-                        }
-                    }
-                }
-            }
-
-            $roles = array_unique($roles);  // remove duplicates
             if (empty($roles)) {
-                // If user has no roles, redirect to an unauthorized page or login with an error
                 return redirect($FRONTEND_URL . '/unauthorized?error=no_role_assigned');
             }
 
-            $user_mapping = [
-                'ups_user_uuid' => $userDetails['user_uuid'],
-                'employee_code' => $userDetails['employee_code'],
-                'name' => $userDetails['full_name'],
-                'email' => $userDetails['email'] ?? null,
-                'designation' => $userDetails['designation_name'],
-                'phone' => $userDetails['mobile_no'] ?? null,
-                'role_name' => json_encode($roles),
-                'status' => $userDetails['status'] == 1 ? 'active' : 'inactive',
-                'password' => 123456,
-            ];
-            $user = User::firstOrCreate(
-                ['ups_user_uuid' => $userDetails['user_uuid']],
-                $user_mapping
-            );
-            if (!$user) {
-                return $this->respondWithProblem(
-                    title: 'User creation failed',
-                    detail: 'Failed to create user.',
-                    httpStatus: 500,
-                    errorCode: 'ELRS-VAL-NOUSER'
-                );
-            }
             $priority = ['superadmin', 'admin', 'adc', 'teamlead', 'developer', 'lra', 'applicant'];
-
             $primaryRole = null;
 
             foreach ($priority as $p) {
@@ -212,20 +152,12 @@ class MasterController extends Controller
                 'applicant', 'lra', 'adc' => '/applicant-dashboard',
                 default => '/my-dashboard'
             };
-            // $redirectPath = match (strtolower($roleCode)) {
-            //     'admin', 'superadmin' => '/superadmin-dashboard',
-            //     'teamlead', 'team_lead' => '/teamlead-dashboard',
-            //     'developer' => '/developer-dashboard',
-            //     'applicant' => '/applicant-dashboard',
-            //     default => '/my-dashboard'
-            // };
 
             // 🔁 STEP 5: Redirect to frontend dashboard and pass tokens securely via temporary Cookies
-            // Cookie parameters: name, value, minutes (5), path, domain, secure (false for local), httpOnly (false so React can read it)
             return redirect($FRONTEND_URL . $redirectPath)
                 ->cookie('ups_access_token', $accessToken, 5, '/', null, false, false)
                 ->cookie('ups_id_token', $idToken, 5, '/', null, false, false)
-                ->cookie('ups_user_name', $userDetails['full_name'] ?? 'User', 5, '/', null, false, false)
+                ->cookie('ups_user_name', $user->name ?? 'User', 5, '/', null, false, false)
                 ->cookie('ups_role', $primaryRole, 5, '/', null, false, false);
 
             /*

@@ -8,10 +8,16 @@ class TicketLog extends Model
 {
     protected $fillable = [
         'ticket_id',
+        'status_id',
         'user_id',
         'action',
         'remark'
     ];
+
+    public function status()
+    {
+        return $this->belongsTo(Status::class);
+    }
 
     public function ticket()
     {

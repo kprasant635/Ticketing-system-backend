@@ -12,7 +12,8 @@ return new class extends Migration {
     {
         Schema::table('users', function (Blueprint $table) {
             $table->string('ups_user_uuid')->nullable()->unique()->after('id');
-            $table->string('employee_code')->nullable()->after('ups_user_uuid');
+            $table->string('ups_user_id')->nullable()->unique()->after('ups_user_uuid');
+            $table->string('employee_code')->nullable()->after('ups_user_id');
             $table->string('role_name')->nullable()->after('employee_code');
             $table->string('phone')->nullable()->after('role_name');
             $table->string('designation')->nullable()->after('phone');

@@ -48,6 +48,15 @@ class TicketController extends Controller
     public function store(CreateTicketRequest $request): JsonResponse
     {
         try {
+            // if (!auth()->check()) {
+            //     return $this->respondWithProblem(
+            //         title: 'Unauthorized',
+            //         detail: 'Your session has expired. Please log in again.',
+            //         httpStatus: 401,
+            //         errorCode: 'ELRS-VAL-INVALIDID'
+            //     );
+            // }
+
             $dto = TicketDTO::fromRequest($request);
 
             $ticket = $this->service->create($dto);
@@ -58,9 +67,10 @@ class TicketController extends Controller
                 code: ResponseStatus::CREATED
             );
         } catch (Exception $e) {
+            \Log::error('Ticket creation failed: ' . $e->getMessage());
             return $this->respondWithProblem(
-                title: 'Failed to create ticket',
-                detail: $e->getMessage(),
+                title: 'Submission Failed',
+                detail: 'We could not process your ticket at this time. Please try again later.',
                 httpStatus: 500,
                 errorCode: 'ELRS-VAL-INVALIDID'
             );
@@ -158,4 +168,73 @@ class TicketController extends Controller
             return $this->serverError('Failed to delete ticket: ' . $e->getMessage());
         }
     }
+
+    public function assign($id, Request $request): JsonResponse
+    {
+        try {
+            $id = decrypt_id($id);
+            $validated = $request->validate([
+                'developer_id' => 'required|exists:users,id',
+            ]);
+
+            $ticket = $this->service->assign($id, $validated['developer_id']);
+
+            return $this->respondWithSuccess(
+                data: TicketTransformer::transform($ticket),
+                message: 'Ticket assigned successfully'
+            );
+        } catch (Exception $e) {
+            return $this->respondWithProblem(
+                title: 'Assignment Failed',
+                detail: $e->getMessage(),
+                httpStatus: 500
+            );
+        }
+    }
+
+    public function changeStatus($id, Request $request): JsonResponse
+    {
+        try {
+            $id = decrypt_id($id);
+            $validated = $request->validate([
+                'status_id' => 'required|exists:statuses,id',
+                'remark' => 'nullable|string',
+            ]);
+
+            $ticket = $this->service->changeStatus($id, $validated['status_id'], $validated['remark'] ?? null);
+
+            return $this->respondWithSuccess(
+                data: TicketTransformer::transform($ticket),
+                message: 'Status updated successfully'
+            );
+        } catch (Exception $e) {
+            return $this->respondWithProblem(
+                title: 'Status Update Failed',
+                detail: $e->getMessage(),
+                httpStatus: 500
+            );
+        }
+    }
+
+    public function close($id, Request $request): JsonResponse
+    {
+        try {
+            $id = decrypt_id($id);
+            $remark = $request->input('remark');
+
+            $ticket = $this->service->close($id, $remark);
+
+            return $this->respondWithSuccess(
+                data: TicketTransformer::transform($ticket),
+                message: 'Ticket closed successfully'
+            );
+        } catch (Exception $e) {
+            return $this->respondWithProblem(
+                title: 'Failed to close ticket',
+                detail: $e->getMessage(),
+                httpStatus: 500
+            );
+        }
+    }
 }
+

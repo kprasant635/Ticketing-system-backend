@@ -13,6 +13,7 @@ return new class extends Migration {
         Schema::create('ticket_assignments', function (Blueprint $table) {
             $table->id();
             $table->foreignId('ticket_id');
+            $table->foreignId('status_id')->default(2)->constrained('statuses');
 
             $table->foreignId('assigned_by');
 

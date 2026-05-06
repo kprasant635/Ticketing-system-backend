@@ -19,7 +19,16 @@ class TicketRepository implements TicketRepositoryInterface
 
     public function find(int $id)
     {
-        return Ticket::findOrFail($id);
+        return Ticket::with([
+            'service',
+            'category',
+            'subcategory',
+            'priority',
+            'status',
+            'attachments',
+            'logs.status_id',
+            'assignments.status_id'
+        ])->findOrFail($id);
     }
 
     public function update(int $id, array $data)

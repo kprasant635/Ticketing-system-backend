@@ -22,7 +22,7 @@ class TicketService
     {
         $data = [
             'ticket_no' => uniqid(),
-            'applicant_id' => 1,
+            'applicant_id' => auth()->id(),
             'service_id' => $dto->service_id,
             'category_id' => $dto->category_id,
             'subcategory_id' => $dto->sub_category_id,
@@ -108,4 +108,90 @@ class TicketService
 
         return $ticket->load('attachments');
     }
+
+    public function assign(int $id, int $developerId)
+    {
+        $ticket = $this->repo->find($id);
+
+        // 🕒 SLA Logic: Auto-set SLA on assignment
+        $priorityId = $ticket->priority_id;
+        $resolutionHours = 24; // Default fallback
+
+        if ($priorityId) {
+            $sla = \App\Models\Sla::where('priority_id', $priorityId)->first();
+            if ($sla) {
+                $resolutionHours = $sla->resolution_time_hours;
+            } elseif ($ticket->priority) {
+                $resolutionHours = $ticket->priority->sla_hours;
+            }
+        }
+
+        $startTime = now();
+        $dueTime = $startTime->copy()->addHours($resolutionHours);
+
+        $ticket->update([
+            'developer_id' => $developerId,
+            'status_id' => 2, // Assuming 2 is 'Assigned/Pending'
+            'assigned_at' => $startTime
+        ]);
+
+        // Create or update Ticket SLA record
+        $ticket->sla()->updateOrCreate(
+            ['ticket_id' => $ticket->id],
+            [
+                'start_time' => $startTime,
+                'due_time'   => $dueTime,
+            ]
+        );
+
+        $ticket->assignments()->create([
+            'assigned_by' => auth()->id(),
+            'assigned_to' => $developerId,
+            'status_id' => 2,
+            'assigned_at' => $startTime
+        ]);
+
+        $ticket->logs()->create([
+            'user_id' => auth()->id(),
+            'status_id' => 2,
+            'action' => 'Assigned to developer',
+            'remark' => 'Ticket assigned to developer'
+        ]);
+
+        return $ticket->load(['logs.status', 'assignments.status', 'sla']);
+    }
+
+    public function changeStatus(int $id, int $statusId, string $remark = null)
+    {
+        $ticket = $this->repo->find($id);
+        $ticket->update(['status_id' => $statusId]);
+
+        $ticket->logs()->create([
+            'user_id' => auth()->id(),
+            'status_id' => $statusId,
+            'remark' => $remark,
+            'action' => 'Status changed'
+        ]);
+
+        return $ticket->load('logs.status');
+    }
+
+    public function close(int $id, string $remark = null)
+    {
+        $ticket = $this->repo->find($id);
+        $ticket->update([
+            'status_id' => 5, // Assuming 5 is 'Closed'
+            'closed_at' => now()
+        ]);
+
+        $ticket->logs()->create([
+            'user_id' => auth()->id(),
+            'status_id' => 5,
+            'remark' => $remark,
+            'action' => 'Ticket closed'
+        ]);
+
+        return $ticket->load('logs.status');
+    }
 }
+

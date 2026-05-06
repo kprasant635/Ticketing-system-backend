@@ -8,10 +8,16 @@ class TicketAssignment extends Model
 {
     protected $fillable = [
         'ticket_id',
+        'status_id',
         'assigned_by',
         'assigned_to',
         'assigned_at'
     ];
+
+    public function status()
+    {
+        return $this->belongsTo(Status::class);
+    }
 
     public function ticket()
     {

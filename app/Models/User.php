@@ -34,7 +34,8 @@ class User extends Authenticatable
         'employee_code',
         'phone',
         'designation',
-        'role_name'
+        'role_name',
+        'ups_user_id'
     ];
 
     public function role()

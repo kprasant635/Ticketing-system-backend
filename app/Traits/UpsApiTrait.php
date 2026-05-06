@@ -2,6 +2,7 @@
 
 namespace App\Traits;
 
+use App\Models\User;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -129,6 +130,64 @@ trait UpsApiTrait
                 'message' => $e->getMessage()
             ]);
             throw $e;
+        }
+    }
+
+    /**
+     * Sync/Provision a user from UPS if they don't exist locally.
+     */
+    public function syncUpsUser(string $token, string $upsUserUuid): ?User
+    {
+        try {
+            // 1. Fetch user details from UPS
+            $response = $this->upsGet_user_details('master/users/' . $upsUserUuid, [], [
+                'Authorization' => 'Bearer ' . $token
+            ]);
+
+            if (!$response || !$response->successful()) {
+                Log::error('UPS Sync: Failed to fetch user details from UPS for sub=' . $upsUserUuid);
+                return null;
+            }
+
+            $details = $response->json()['data'] ?? null;
+            if (!$details)
+                return null;
+
+            // 2. Fetch postings to get roles
+            $postingsResponse = $this->upsGet('runtime/my-postings', [], [
+                'Authorization' => 'Bearer ' . $token
+            ]);
+
+            $roles = [];
+            if ($postingsResponse && $postingsResponse->successful()) {
+                $postings = $postingsResponse->json()['data'] ?? [];
+                foreach ($postings as $p) {
+                    if (!empty($p['is_current'])) {
+                        $roleCode = $p['posting']['role']['role_code'] ?? null;
+                        if ($roleCode)
+                            $roles[] = strtolower($roleCode);
+                    }
+                }
+            }
+            $roles = array_unique($roles);
+
+            // 3. Create or Update user
+            return User::updateOrCreate(
+                ['ups_user_uuid' => $details['user_uuid'], 'ups_user_id' => $upsUserUuid],
+                [
+                    'name' => $details['full_name'] ?? 'UPS User',
+                    'email' => $details['email'] ?? null,
+                    'employee_code' => $details['employee_code'] ?? null,
+                    'designation' => $details['designation_name'] ?? null,
+                    'phone' => $details['mobile_no'] ?? null,
+                    'role_name' => json_encode($roles),
+                    'status' => ($details['status'] ?? 1) == 1 ? 'active' : 'inactive',
+                    'password' => bcrypt('ups_sync_password_' . uniqid()),
+                ]
+            );
+        } catch (\Exception $e) {
+            Log::error('UPS Sync Exception: ' . $e->getMessage());
+            return null;
         }
     }
 }

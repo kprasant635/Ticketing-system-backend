@@ -28,8 +28,58 @@ class TicketTransformer
                 'file_url' => asset('storage/' . $a->file_path),
                 'file_type' => $a->file_type,
             ]),
-            'created_at' => $ticket->created_at
+            'created_at' => $ticket->created_at,
+            'timeline' => self::buildTimeline($ticket),
+            'sla' => $ticket->sla ? [
+                'start_time' => $ticket->sla->start_time,
+                'due_time' => $ticket->sla->due_time,
+                'completed_time' => $ticket->sla->completed_time,
+                'is_breached' => $ticket->sla->is_breached,
+            ] : null,
         ];
+    }
+
+    private static function buildTimeline(Ticket $ticket): array
+    {
+        $timeline = [];
+
+        // 1. Initial Creation
+        $timeline[] = [
+            'icon' => '🔵',
+            'event' => 'Ticket created',
+            'at' => $ticket->created_at,
+            'accent' => true
+        ];
+
+        // 2. Status Changes from Logs
+        if ($ticket->logs) {
+            foreach ($ticket->logs as $log) {
+                if ($log->status) {
+                    $statusName = strtolower($log->status->status_name);
+                    $icon = match ($statusName) {
+                        'pending', 'in progress', 'assigned' => '🟣',
+                        'resolved', 'closed' => '🟢',
+                        'on hold' => '🟠',
+                        'reopened' => '🟡',
+                        default => '⚪',
+                    };
+
+                    $timeline[] = [
+                        'icon' => $icon,
+                        'event' => $log->action ?? "Ticket " . $log->status->status_name,
+                        'at' => $log->created_at,
+                        'accent' => true
+                    ];
+                }
+            }
+        }
+
+        // Sort timeline by date
+        usort($timeline, function ($a, $b) {
+            return $a['at'] <=> $b['at'];
+        });
+
+        return $timeline;
     }
 
     public static function collection(Collection $tickets): array

@@ -23,6 +23,7 @@ return new class extends Migration {
             // query raised
             // replied
             // closed
+            $table->foreignId('status_id')->default(2)->constrained('statuses');
 
             $table->text('remark')->nullable();
             $table->timestamps();
