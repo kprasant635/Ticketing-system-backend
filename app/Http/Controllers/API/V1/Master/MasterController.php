@@ -36,21 +36,15 @@ class MasterController extends Controller
     public function keyclock_Callback(Request $request)
     {
         $code = $request->query('code');
-
-        if (!$code) {
-            return $this->respondWithProblem(
-                title: 'No code received',
-                detail: 'The provided code is invalid or corrupted.',
-                httpStatus: 400,
-                errorCode: 'ELRS-VAL-INVALIDCODE'
-            );
-        }
-
         $KEYCLOAK_BASE = 'https://elrs-auth.assam.gov.in/keycloak/realms/elrs-sso';
         $CLIENT_ID = 'elrs-ticketing-system';
         $CLIENT_SECRET = 'jVZm6mIsoEzdogErFc8Xfd6N9DnHZhj9';
         $REDIRECT_URI = 'http://127.0.0.1:8000/api/v1/master/ticket-callback-url';
         $FRONTEND_URL = 'http://127.0.0.1:3501';
+
+        if (!$code) {
+            return redirect($FRONTEND_URL . '/unauthorized?error=' . urlencode('The provided code is invalid or corrupted.'));
+        }
 
         try {
             // 🔄 STEP 1: Exchange code → token
@@ -66,12 +60,7 @@ class MasterController extends Controller
             );
 
             if (!$response->successful()) {
-                return $this->respondWithProblem(
-                    title: 'Token exchange failed',
-                    detail: 'The provided token is invalid or corrupted.',
-                    httpStatus: 500,
-                    errorCode: 'ELRS-VAL-INVALIDTOKEN'
-                );
+                return redirect($FRONTEND_URL . '/unauthorized?error=' . urlencode('The provided token is invalid or corrupted.'));
             }
 
             $data = $response->json();
@@ -84,12 +73,7 @@ class MasterController extends Controller
             $keycloakUserId = $payload['sub'] ?? null;
 
             if (!$keycloakUserId) {
-                return $this->respondWithProblem(
-                    title: 'User ID not found',
-                    detail: 'The provided user ID is invalid or corrupted.',
-                    httpStatus: 500,
-                    errorCode: 'ELRS-VAL-INVALIDUSERID'
-                );
+                return redirect($FRONTEND_URL . '/unauthorized?error=' . urlencode('The provided user ID is invalid or corrupted.'));
             }
 
             // \Log::info('Keycloak User ID: ' . $keycloakUserId);
@@ -100,12 +84,7 @@ class MasterController extends Controller
             ]);
 
             if (!$upsResponse->successful()) {
-                return $this->respondWithProblem(
-                    title: 'UPS API failed',
-                    detail: 'The provided UPS API failed.',
-                    httpStatus: 500,
-                    errorCode: 'ELRS-VAL-INVALIDUPS'
-                );
+                return redirect($FRONTEND_URL . '/unauthorized?error=' . urlencode('The provided UPS API failed.'));
             }
 
             $upsData = $upsResponse->json();
@@ -119,12 +98,7 @@ class MasterController extends Controller
             $user = $this->syncUpsUser($accessToken, $ups_user_id);
 
             if (!$user) {
-                return $this->respondWithProblem(
-                    title: 'UPS Sync failed',
-                    detail: 'Failed to sync user from UPS.',
-                    httpStatus: 500,
-                    errorCode: 'ELRS-VAL-SYNCFAILED'
-                );
+                return redirect($FRONTEND_URL . '/unauthorized?error=' . urlencode('Failed to sync user from UPS.'));
             }
 
             // Extract roles from the synced user model
@@ -182,12 +156,7 @@ class MasterController extends Controller
             // 🔁 STEP 5: Redirect to frontend with token (optional)
             // return redirect($FRONTEND_URL . '?token=' . $upsData['access_token']);
         } catch (\Exception $e) {
-            return $this->respondWithProblem(
-                title: 'Exception occurred',
-                detail: $e->getMessage(),
-                httpStatus: 500,
-                errorCode: 'ELRS-VAL-EXCEPTION'
-            );
+            return redirect($FRONTEND_URL . '/unauthorized?error=' . urlencode($e->getMessage()));
         }
     }
 

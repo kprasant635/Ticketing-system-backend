@@ -3,9 +3,11 @@
 namespace App\Services;
 
 use App\DTO\TicketDTO;
+use App\Models\CategoryTeamLead;
 use App\Models\TicketAttachment;
 use App\Repositories\Interfaces\TicketRepositoryInterface;
 use Illuminate\Support\Facades\Storage;
+use Str;
 
 class TicketService
 {
@@ -20,8 +22,10 @@ class TicketService
 
     public function create(TicketDTO $dto)
     {
+        $teamLead = CategoryTeamLead::where('category_id', $dto->category_id)->first();
+        $teamLeadId = $teamLead ? $teamLead->team_lead_id : null;
         $data = [
-            'ticket_no' => uniqid(),
+            'ticket_no' => 'TK-' . strtoupper(Str::random(6)),
             'applicant_id' => auth()->id(),
             'service_id' => $dto->service_id,
             'category_id' => $dto->category_id,
@@ -29,6 +33,7 @@ class TicketService
             'subject' => $dto->subject,
             'description' => $dto->description,
             'status_id' => 1,
+            'team_lead_id' => $teamLeadId,
             'json_data' => [
                 'applicant_name' => $dto->applicant_name,
                 'phone_number' => $dto->applicant_phone,
@@ -115,7 +120,7 @@ class TicketService
 
         // 🕒 SLA Logic: Auto-set SLA on assignment
         $priorityId = $ticket->priority_id;
-        $resolutionHours = 24; // Default fallback
+        $resolutionHours = 24;  // Default fallback
 
         if ($priorityId) {
             $sla = \App\Models\Sla::where('priority_id', $priorityId)->first();
@@ -131,7 +136,7 @@ class TicketService
 
         $ticket->update([
             'developer_id' => $developerId,
-            'status_id' => 2, // Assuming 2 is 'Assigned/Pending'
+            'status_id' => 2,  // Assuming 2 is 'Assigned/Pending'
             'assigned_at' => $startTime
         ]);
 
@@ -140,7 +145,7 @@ class TicketService
             ['ticket_id' => $ticket->id],
             [
                 'start_time' => $startTime,
-                'due_time'   => $dueTime,
+                'due_time' => $dueTime,
             ]
         );
 
@@ -180,7 +185,7 @@ class TicketService
     {
         $ticket = $this->repo->find($id);
         $ticket->update([
-            'status_id' => 5, // Assuming 5 is 'Closed'
+            'status_id' => 5,  // Assuming 5 is 'Closed'
             'closed_at' => now()
         ]);
 
@@ -194,4 +199,3 @@ class TicketService
         return $ticket->load('logs.status');
     }
 }
-
