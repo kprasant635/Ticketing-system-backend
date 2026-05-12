@@ -54,13 +54,21 @@ class MasterRepository
             ->join('users as tl', function ($join) {
                 $join
                     ->on('tl.id', '=', 'ctl.team_lead_id')
-                    ->where('tl.role_name', 'teamlead');
+                    ->where(function ($q) {
+                        $q
+                            ->where('tl.role_name', 'teamlead')
+                            ->orWhere('tl.role_name', 'like', '%teamlead%');
+                    });
             })
             ->leftJoin('team_lead_developer as tld', 'tld.team_lead_id', '=', 'tl.id')
             ->leftJoin('users as d', function ($join) {
                 $join
                     ->on('d.id', '=', 'tld.developer_id')
-                    ->where('d.role_name', 'developer');
+                    ->where(function ($q) {
+                        $q
+                            ->where('d.role_name', 'developer')
+                            ->orWhere('d.role_name', 'like', '%developer%');
+                    });
             })
             ->select(
                 'c.id as categoryId',
@@ -70,9 +78,28 @@ class MasterRepository
                 'tl.id as teamLeadId',
                 'tl.name as teamLeadName',
                 'tl.email as teamLeadEmail',
-                DB::raw("json_agg(json_build_object('_id', d.id, 'name', d.name, 'email', d.email)) as developers")
+                DB::raw("
+            COALESCE(
+                json_agg(
+                    DISTINCT jsonb_build_object(
+                        '_id', d.id,
+                        'name', d.name,
+                        'email', d.email
+                    )
+                ) FILTER (WHERE d.id IS NOT NULL),
+                '[]'
+            ) as developers
+        ")
             )
-            ->groupBy('c.id', 'c.name', 's.id', 's.service_name', 'tl.id', 'tl.name', 'tl.email')
+            ->groupBy(
+                'c.id',
+                'c.name',
+                's.id',
+                's.service_name',
+                'tl.id',
+                'tl.name',
+                'tl.email'
+            )
             ->orderBy('c.id')
             ->get();
     }
@@ -93,13 +120,24 @@ class MasterRepository
             });
     }
 
-    public function getDeveloperList()
+    public function getDeveloperList($teamLeadId = null)
     {
-        return User::where(function ($query) {
+        $query = User::where(function ($query) {
             $query
                 ->where('role_name', 'developer')
                 ->orWhere('role_name', 'like', '%developer%');
-        })
+        });
+
+        if ($teamLeadId) {
+            $query->whereIn('id', function ($q) use ($teamLeadId) {
+                $q
+                    ->select('developer_id')
+                    ->from('team_lead_developer')
+                    ->where('team_lead_id', $teamLeadId);
+            });
+        }
+
+        return $query
             ->select('id', 'name', 'email', 'employee_code', 'designation', 'status', 'created_at', 'updated_at')
             ->get()
             ->map(function ($user) {

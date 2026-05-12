@@ -22,6 +22,8 @@ class TicketTransformer
             'subcategory_id' => encrypt_id($ticket->subcategory_id),
             'priority' => $ticket->priority?->priority_name,
             'status' => $ticket->status?->status_name,
+            'developer_name' => $ticket->developer?->name,
+            'developer_id' => encrypt_id($ticket->developer_id),
             'applicant_info' => $ticket->json_data,
             'attachments' => $ticket->attachments->map(fn($a) => [
                 'file_name' => $a->file_name,

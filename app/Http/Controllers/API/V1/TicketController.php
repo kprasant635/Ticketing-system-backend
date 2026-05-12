@@ -173,11 +173,21 @@ class TicketController extends Controller
     {
         try {
             $id = decrypt_id($id);
-            $validated = $request->validate([
-                'developer_id' => 'required|exists:users,id',
+
+            $request->merge([
+                'developer_id' => decrypt_id($request->developer_id),
             ]);
 
-            $ticket = $this->service->assign($id, $validated['developer_id']);
+            $validated = $request->validate([
+                'developer_id' => 'required|exists:users,id',
+                'priority_id' => 'nullable|exists:priorities,id',
+            ]);
+
+            $ticket = $this->service->assign(
+                $id,
+                $validated['developer_id'],
+                $validated['priority_id'] ?? null
+            );
 
             return $this->respondWithSuccess(
                 data: TicketTransformer::transform($ticket),
@@ -236,5 +246,25 @@ class TicketController extends Controller
             );
         }
     }
-}
 
+    // New method: Get tickets assigned to team lead
+    public function teamLeadTickets()
+    {
+        try {
+            $user = auth()->user();
+
+            $tickets = $this->service->getTeamLeadTickets($user->id);
+
+            return $this->respondWithSuccess(
+                data: TicketTransformer::collection($tickets),
+                message: 'Team lead tickets fetched successfully'
+            );
+        } catch (Exception $e) {
+            return $this->respondWithProblem(
+                title: 'Failed to fetch team lead tickets',
+                detail: $e->getMessage(),
+                httpStatus: 500
+            );
+        }
+    }
+}

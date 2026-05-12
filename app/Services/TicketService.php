@@ -114,9 +114,14 @@ class TicketService
         return $ticket->load('attachments');
     }
 
-    public function assign(int $id, int $developerId)
+    public function assign(int $id, int $developerId, int $priorityId = null)
     {
         $ticket = $this->repo->find($id);
+
+        if ($priorityId) {
+            $ticket->update(['priority_id' => $priorityId]);
+            $ticket = $ticket->fresh(['priority']);
+        }
 
         // 🕒 SLA Logic: Auto-set SLA on assignment
         $priorityId = $ticket->priority_id;
@@ -197,5 +202,10 @@ class TicketService
         ]);
 
         return $ticket->load('logs.status');
+    }
+
+    public function getTeamLeadTickets($teamLeadId)
+    {
+        return $this->repo->getTeamLeadTickets($teamLeadId);
     }
 }

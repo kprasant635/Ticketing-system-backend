@@ -45,9 +45,9 @@ class MasterService
         return $this->repo->getTeamLeadList();
     }
 
-    public function getDeveloperList()
+    public function getDeveloperList($teamLeadId = null)
     {
-        return $this->repo->getDeveloperList();
+        return $this->repo->getDeveloperList($teamLeadId);
     }
 
     public function getapplicantList()

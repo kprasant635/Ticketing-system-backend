@@ -262,9 +262,24 @@ class MasterController extends Controller
         );
     }
 
-    public function getDeveloperList()
+    public function getDeveloperList(Request $request)
     {
-        $developerList = $this->service->getDeveloperList();
+        $user = auth()->user();
+        $roles = json_decode($user->role_name, true) ?? [];
+
+        $teamLeadId = null;
+
+        // 1. Check if an explicit team_lead_id is provided (for Admins)
+        if ($request->has('team_lead_id')) {
+            $teamLeadId = decrypt_id($request->query('team_lead_id'));
+        }
+
+        // 2. If no ID in query, and user is a Team Lead (but NOT an admin), auto-filter by their ID
+        if (!$teamLeadId && in_array('teamlead', $roles) && !in_array('admin', $roles) && !in_array('superadmin', $roles)) {
+            $teamLeadId = $user->id;
+        }
+
+        $developerList = $this->service->getDeveloperList($teamLeadId);
 
         return $this->respondWithSuccess(
             data: $developerList,
